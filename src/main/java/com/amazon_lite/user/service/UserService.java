@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import com.amazon_lite.enums.Role;
 import com.amazon_lite.security.JwtUtil;
 import com.amazon_lite.user.dto.LoginRequestDTO;
 import com.amazon_lite.user.dto.LoginResponseDTO;
@@ -47,8 +48,8 @@ public class UserService {
         if (!encoder.matches(request.getPassword(), user.getPassword())) {
             throw new RuntimeException("Invalid credentials");
         }
-
-        String token = jwtUtil.generateToken(user.getEmail());
+        String role = user.getRole() != null ? user.getRole().toString() : Role.USER.toString();
+        String token = jwtUtil.generateToken(user.getEmail(), role);
         return LoginResponseDTO.builder()
                 .message("Login successful")
                 .token(token)
