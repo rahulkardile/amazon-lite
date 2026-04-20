@@ -1,7 +1,7 @@
 # 🛒 Amazon Lite Backend
 
-A scalable backend system built with **Spring Boot** that simulates a real-world e-commerce platform.  
-It includes **JWT authentication, Redis caching, and transactional order processing**, designed with production-grade architecture.
+A production-grade backend system built with **Spring Boot**, simulating a real-world e-commerce platform.  
+It implements **JWT authentication, Redis caching, transactional order processing, and Kafka-based event-driven architecture**.
 
 ---
 
@@ -10,7 +10,8 @@ It includes **JWT authentication, Redis caching, and transactional order process
 ### 🔐 Authentication & Security
 - JWT-based authentication
 - Stateless session management
-- Role-based access (USER / ADMIN ready)
+- Role-based authorization (USER / ADMIN ready)
+- Custom security filter (JWT filter)
 
 ---
 
@@ -19,7 +20,8 @@ It includes **JWT authentication, Redis caching, and transactional order process
 - Redis caching:
   - `getById`
   - `getAll`
-- Automatic cache invalidation on write operations
+- Cache eviction on write operations
+- Optimized read-heavy performance
 
 ---
 
@@ -28,18 +30,26 @@ It includes **JWT authentication, Redis caching, and transactional order process
 - Transactional order processing (`@Transactional`)
 - Stock validation and deduction
 - User-specific order history
-- Clean DTO-based responses
+- DTO-based response mapping
 
 ---
 
 ### ⚡ Caching (Redis)
 - Cache-aside pattern
 - TTL-based expiration
-- JSON serialization with type safety
-- Handles real-world issues like:
-  - Serialization errors
+- JSON serialization with proper type handling
+- Handles:
+  - Serialization pitfalls
   - Cache invalidation
-  - Collection caching
+  - Collection caching challenges
+
+---
+
+### 📡 Kafka (Event-Driven Architecture)
+- Order creation triggers Kafka event
+- Producer publishes `OrderCreatedEvent`
+- Consumer listens and processes asynchronously
+- Decouples services for scalability
 
 ---
 
@@ -50,20 +60,18 @@ It includes **JWT authentication, Redis caching, and transactional order process
 - **Database:** PostgreSQL  
 - **ORM:** Spring Data JPA (Hibernate)  
 - **Caching:** Redis  
+- **Messaging:** Apache Kafka  
 - **Containerization:** Docker  
-- **Messaging (Planned):** Kafka  
 
 ---
 
 ## 🧱 Architecture
-Controller → Service → Repository → Database
-↓
-Redis Cache
-
+Controller → Service → Repository → Database → Redis Cache → Kafka (Events)
 
 - Clean layered architecture  
-- DTO pattern for API responses  
+- DTO pattern (no entity exposure)  
 - Centralized exception handling  
+- Event-driven extensibility  
 
 ---
 
@@ -73,19 +81,54 @@ Redis Cache
 
 - Java 17+
 - Maven
-- Docker (for PostgreSQL & Redis)
+- Docker
 
 ---
 
-### 🐳 Run PostgreSQL & Redis
+## 🐳 Run Services (Docker)
+
+### PostgreSQL
 
 ```bash
-# PostgreSQL
 docker run -d -p 5432:5432 \
--e POSTGRES_DB=**** \
--e POSTGRES_USER=**** \
--e POSTGRES_PASSWORD=**** \
+-e POSTGRES_DB=amazon_lite \
+-e POSTGRES_USER=postgres \
+-e POSTGRES_PASSWORD=postgres \
 postgres:15
+```
+Redis
+```bash
+docker run -d -p 6379:6379 redis 
+```
 
-# Redis
-docker run -d -p 6379:6379 redis
+Kafka (KRaft Mode)
+```bash
+docker run -d \
+--name kafka \
+-p 9092:9092 \
+-p 9093:9093 \
+-e KAFKA_NODE_ID=1 \
+-e KAFKA_PROCESS_ROLES=broker,controller \
+-e KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093 \
+-e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092 \
+-e KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER \
+-e KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:9093 \
+-e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
+-e KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1 \
+-e KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1 \
+-e KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0 \
+confluentinc/cp-kafka:latest
+```
+
+Kafka (KRaft Mode)
+
+```bash
+
+docker exec -it kafka bash
+
+kafka-topics --create \
+--topic order-created \
+--bootstrap-server localhost:9092 \
+--partitions 1 \
+--replication-factor 1
+```
